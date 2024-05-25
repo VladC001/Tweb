@@ -11,6 +11,8 @@
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.3.0",
     "antd": "^5.17.2",
+    "mobx": "^6.12.3",
+    "mobx-react-lite": "^4.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
