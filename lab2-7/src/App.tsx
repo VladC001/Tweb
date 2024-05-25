@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Button, Form, Input, Layout, Menu, Select } from 'antd';
 import { makeAutoObservable } from 'mobx';
 import { observer } from 'mobx-react-lite';
+import CardDetails from './CardDetails'; // Ensure this path is correct
 
 const { Item: MenuItem } = Menu;
 const { Header, Content, Footer } = Layout;
 const { Option } = Select;
 
-interface Item {
+interface CardItem {
     key: string;
     NrCard: string;
     NumberOfCard: string;
@@ -18,8 +20,13 @@ interface Item {
     bank: string;
 }
 
+interface User {
+    username: string;
+    password: string;
+}
+
 class Store {
-    items: Item[] = new Array(3).fill(null).map((_, index) => ({
+    items: CardItem[] = new Array(3).fill(null).map((_, index) => ({
         key: (index + 1).toString(),
         NrCard: generateRandomCardNumber(),
         NumberOfCard: `Card ${index + 1}`,
@@ -30,9 +37,15 @@ class Store {
         bank: generateRandomBank(),
     }));
 
+    users: User[] = [
+        { username: 'user1', password: 'password1' },
+        { username: 'user2', password: 'password2' },
+    ];
+
     constructor() {
         makeAutoObservable(this);
         this.initializeData();
+        this.initializeUsers();
     }
 
     saveDataToLocalStorage = (key: string, data: any) => {
@@ -51,25 +64,36 @@ class Store {
         }
     };
 
-    updateItem = (key: string, data: Partial<Item>) => {
-        const storedData: Item[] = this.getDataFromLocalStorage('items');
-        const updatedData = storedData.map(item => (item.key === key ? { ...item, ...data } : item));
+    initializeUsers = () => {
+        const storedUsers = this.getDataFromLocalStorage('users');
+        if (!storedUsers) {
+            this.saveDataToLocalStorage('users', this.users);
+        }
+    };
+
+    updateItem = (key: string, data: Partial<CardItem>) => {
+        const storedData = this.getDataFromLocalStorage('items') || [];
+        const updatedData = storedData.map((item: CardItem) => (item.key === key ? { ...item, ...data } : item));
         this.saveDataToLocalStorage('items', updatedData);
+    };
+
+    checkCredentials = (username: string, password: string) => {
+        return this.users.some(user => user.username === username && user.password === password);
     };
 }
 
-const generateRandomCardNumber = (): string => {
-    const generatePart = () => Math.floor(1000 + Math.random() * 9000).toString();
+const generateRandomCardNumber = () => {
+    const generatePart = () => Math.floor(1000 + Math.random() * 9000);
     return `${generatePart()} ${generatePart()} ${generatePart()} ${generatePart()}`;
 };
 
-const generateRandomDateOfExpire = (): string => {
+const generateRandomDateOfExpire = () => {
     const generateMonth = () => String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
     const generateYear = () => String(Math.floor(Math.random() * 10) + 22);
     return `${generateMonth()}/${generateYear()}`;
 };
 
-const generateRandomCVC = (): string => String(Math.floor(100 + Math.random() * 900));
+const generateRandomCVC = () => String(Math.floor(100 + Math.random() * 900));
 
 const romanianNames = [
     'Andrei Popescu', 'Maria Ionescu', 'Ion Vasilescu', 'Elena Dumitrescu',
@@ -77,12 +101,12 @@ const romanianNames = [
     'George Nicolescu', 'Laura Ungureanu'
 ];
 
-const generateRandomBank = (): string => {
+const generateRandomBank = () => {
     const banks = ['MAIB', 'Gringotts', 'MICB'];
     return banks[Math.floor(Math.random() * banks.length)];
 };
 
-const generateRandomColor = (): string => {
+const generateRandomColor = () => {
     const colors = ['blue', 'red', 'green', 'yellow'];
     return colors[Math.floor(Math.random() * colors.length)];
 };
@@ -91,10 +115,10 @@ const store = new Store();
 
 const CustomForm = observer(() => {
     const [formSubmitted, setFormSubmitted] = useState(false);
-    const [formData, setFormData] = useState<Partial<Item> | null>(null);
+    const [formData, setFormData] = useState<any>(null);
     const [selectedItem, setSelectedItem] = useState('1');
 
-    const onFinish = (values: Partial<Item>) => {
+    const onFinish = (values: any) => {
         setFormSubmitted(true);
         setFormData(values);
         store.updateItem(selectedItem, values);
@@ -107,30 +131,24 @@ const CustomForm = observer(() => {
             <Form onFinish={onFinish} style={{ width: '400px' }}>
                 <Form.Item
                     label="Număr card"
-                    name="NrCard"
-                    rules={[
-                        { required: true, message: 'Vă rugăm să introduceți numărul cardului' },
-                        { pattern: /^[0-9]{4} [0-9]{4} [0-9]{4} [0-9]{4}$/, message: 'Număr card invalid' }
-                    ]}
+                    name="cardNumber"
+                    rules={[{ required: true, message: 'Vă rugăm să introduceți numărul cardului' }]}
                 >
                     <Input placeholder="Introduceți numărul cardului" />
                 </Form.Item>
                 <Form.Item
                     label="Data expirării"
-                    name="DateOfExpire"
-                    rules={[
-                        { required: true, message: 'Vă rugăm să introduceți data expirării' },
-                        { pattern: /^(0[1-9]|1[0-2])\/[0-9]{2}$/, message: 'Dată de expirare invalidă' }
-                    ]}
+                    name="expiryDate"
+                    rules={[{ required: true, message: 'Vă rugăm să introduceți data expirării' }]}
                 >
                     <Input placeholder="Introduceți data expirării" />
                 </Form.Item>
                 <Form.Item
                     label="CVC"
-                    name="CVC"
+                    name="cvc"
                     rules={[
                         { required: true, message: 'Vă rugăm să introduceți CVC-ul' },
-                        { validator: validateCVC }
+                        { validator: validateCVC },
                     ]}
                 >
                     <Input placeholder="Introduceți CVC-ul" />
@@ -162,9 +180,9 @@ const CustomForm = observer(() => {
             {formSubmitted && formData && (
                 <div>
                     <h2>Datele formularului:</h2>
-                    <p>Număr card: {formData.NrCard}</p>
-                    <p>Data expirării: {formData.DateOfExpire}</p>
-                    <p>CVC: {formData.CVC}</p>
+                    <p>Număr card: {formData.cardNumber}</p>
+                    <p>Data expirării: {formData.expiryDate}</p>
+                    <p>CVC: {formData.cvc}</p>
                     <p>Culoare: {formData.color}</p>
                     <p>Bank: {formData.bank}</p>
                 </div>
@@ -173,77 +191,95 @@ const CustomForm = observer(() => {
     );
 });
 
-const validateCVC = (_: any, value: string) => {
-    if (!value) {
-        return Promise.reject('Vă rugăm să introduceți CVC-ul');
-    }
-    if (!/^\d{3}$/.test(value)) {
-        return Promise.reject('Vă rugăm să introduceți un CVC valid (3 cifre)');
-    }
-    return Promise.resolve();
-};
+const LoginForm = observer(() => {
+    const [formSubmitted, setFormSubmitted] = useState(false);
+    const [formData, setFormData] = useState<any>(null);
+    const [loginError, setLoginError] = useState(false);
 
-const fetchDataWithLoading = async () => {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const storedData = store.getDataFromLocalStorage('items');
-    if (storedData) {
-        store.items = storedData;
-    }
-};
+    const onFinish = (values: any) => {
+        setFormSubmitted(true);
+        setFormData(values);
+        const { username, password } = values;
+        const isAuthenticated = store.checkCredentials(username, password);
 
-fetchDataWithLoading();
+        if (isAuthenticated) {
+            setLoginError(false);
+            console.log('Autentificare reușită pentru utilizatorul:', username);
+            return;
+        }
 
-const App = observer(() => {
-    const [selectedItem, setSelectedItem] = useState('1');
-
-    const handleMenuItemClick = (item: any) => setSelectedItem(item.key);
-    const selectedCard = store.items.find((item) => item.key === selectedItem);
+        setLoginError(true);
+        console.log('Autentificare eșuată pentru utilizatorul:', username);
+    };
 
     return (
-        <Layout>
-            <Header style={{ display: 'flex', alignItems: 'center' }}>
-                <div className="demo-logo" />
-                <Menu
-                    theme="dark"
-                    mode="horizontal"
-                    defaultSelectedKeys={['1']}
-                    selectedKeys={[selectedItem]}
-                    onClick={handleMenuItemClick}
-                    style={{ flex: 1, minWidth: 0 }}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+            <Form onFinish={onFinish} style={{ width: '400px' }}>
+                <Form.Item
+                    label="Nume utilizator"
+                    name="username"
+                    rules={[{ required: true, message: 'Vă rugăm să introduceți numele de utilizator' }]}
                 >
-                    {store.items.map(item => (
-                        <MenuItem key={item.key}>{item.NumberOfCard}</MenuItem>
-                    ))}
-                    <MenuItem key="form">Formular</MenuItem>
-                </Menu>
-            </Header>
-            <Content style={{ padding: '0 48px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <div
-                    style={{
-                        background: '#fff',
-                        width: '60%',
-                        padding: '24px',
-                        borderRadius: '5px',
-                        textAlign: 'center',
-                    }}
+                    <Input placeholder="Introduceți numele de utilizator" />
+                </Form.Item>
+                <Form.Item
+                    label="Parolă"
+                    name="password"
+                    rules={[{ required: true, message: 'Vă rugăm să introduceți parola' }]}
                 >
-                    {selectedItem === 'form' ? <CustomForm /> : (
-                        <>
-                            <h2 style={{ fontSize: '24px', marginBottom: '12px' }}>Cardul {selectedCard?.NrCard}</h2>
-                            <p style={{ fontSize: '20px', marginBottom: '8px' }}>Numele proprietarului: {selectedCard?.NameOfOwner}</p>
-                            <p style={{ fontSize: '20px', marginBottom: '8px' }}>Data expirării: {selectedCard?.DateOfExpire}</p>
-                            <p style={{ fontSize: '20px', marginBottom: '8px' }}>CVC: {selectedCard?.CVC}</p>
-                            <p style={{ fontSize: '20px', marginBottom: '8px' }}>Culoare: {selectedCard?.color}</p>
-                            <p style={{ fontSize: '20px', marginBottom: '8px' }}>Bank: {selectedCard?.bank}</p>
-                        </>
-                    )}
+                    <Input.Password placeholder="Introduceți parola" />
+                </Form.Item>
+                <Form.Item>
+                    <Button type="primary" htmlType="submit" style={{ width: '100%' }}>
+                        Autentificare
+                    </Button>
+                </Form.Item>
+            </Form>
+            {loginError && (
+                <div>
+                    <p style={{ color: 'red' }}>Nume utilizator sau parolă incorectă</p>
                 </div>
-            </Content>
-            <Footer style={{ textAlign: 'center' }}>
-                Ant Design ©{new Date().getFullYear()} Creat de Ant UED
-            </Footer>
-        </Layout>
+            )}
+        </div>
     );
 });
 
+const App = () => (
+    <Router>
+        <Layout className="layout">
+            <Header>
+                <Menu theme="dark" mode="horizontal" defaultSelectedKeys={['1']}>
+                    <MenuItem key="1">
+                        <Link to="/">Acasă</Link>
+                    </MenuItem>
+                    <MenuItem key="2">
+                        <Link to="/form">Formular</Link>
+                    </MenuItem>
+                    <MenuItem key="3">
+                        <Link to="/login">Autentificare</Link>
+                    </MenuItem>
+                </Menu>
+            </Header>
+            <Content style={{ padding: '0 50px' }}>
+                <div className="site-layout-content" style={{ margin: '16px 0' }}>
+                    <Routes>
+                        <Route path="/" element={<h1>Bun venit!</h1>} />
+                        <Route path="/form" element={<CustomForm />} />
+                        <Route path="/login" element={<LoginForm />} />
+                        <Route path="/card-details" element={<CardDetails />} />
+                    </Routes>
+                </div>
+            </Content>
+            <Footer style={{ textAlign: 'center' }}>Ant Design ©2023 Created by Ant UED</Footer>
+        </Layout>
+    </Router>
+);
+
 export default App;
+
+function validateCVC(_: any, value: string) {
+    if (/^\d{3}$/.test(value)) {
+        return Promise.resolve();
+    }
+    return Promise.reject(new Error('CVC-ul trebuie să fie un număr de 3 cifre'));
+}
